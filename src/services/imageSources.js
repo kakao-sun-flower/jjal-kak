@@ -198,11 +198,30 @@ async function searchNaver(keywords, count = 5, suffix = '짤') {
   }
 }
 
-// 결과 중복 제거 (originalUrl 기준)
+// URL 정규화 (중복 비교용)
+function normalizeUrl(url) {
+  try {
+    // 프로토콜 통일
+    let normalized = url.replace(/^https?:\/\//, '')
+    // www 제거
+    normalized = normalized.replace(/^www\./, '')
+    // 쿼리스트링의 일부 파라미터 제거 (사이즈, 캐시 관련)
+    normalized = normalized.replace(/[?&](w|h|width|height|size|quality|q|fit|crop|auto|format|f)=[^&]*/gi, '')
+    // 빈 쿼리스트링 정리
+    normalized = normalized.replace(/\?$/, '').replace(/\?&/, '?').replace(/&&+/g, '&')
+    // 끝의 슬래시 제거
+    normalized = normalized.replace(/\/$/, '')
+    return normalized.toLowerCase()
+  } catch {
+    return url
+  }
+}
+
+// 결과 중복 제거 (정규화된 URL 기준)
 function deduplicateResults(results) {
   const seen = new Set()
   return results.filter(item => {
-    const key = item.originalUrl || item.full
+    const key = normalizeUrl(item.originalUrl || item.full)
     if (seen.has(key)) return false
     seen.add(key)
     return true

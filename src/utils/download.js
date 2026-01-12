@@ -2,6 +2,14 @@
 export function downloadImage(canvas, filename = 'jjal-kak.png') {
   return new Promise((resolve, reject) => {
     try {
+      // tainted canvas 체크
+      try {
+        canvas.toDataURL()
+      } catch (e) {
+        reject(new Error('SecurityError: 보안 제한으로 다운로드할 수 없습니다.'))
+        return
+      }
+
       canvas.toBlob((blob) => {
         if (!blob) {
           reject(new Error('이미지 생성 실패'))
@@ -27,6 +35,14 @@ export function downloadImage(canvas, filename = 'jjal-kak.png') {
 // 캔버스를 클립보드에 복사
 export async function copyImageToClipboard(canvas) {
   return new Promise((resolve, reject) => {
+    // tainted canvas 체크
+    try {
+      canvas.toDataURL()
+    } catch (e) {
+      reject(new Error('SecurityError: 보안 제한으로 복사할 수 없습니다.'))
+      return
+    }
+
     canvas.toBlob(async (blob) => {
       if (!blob) {
         reject(new Error('이미지 생성 실패'))
@@ -42,7 +58,11 @@ export async function copyImageToClipboard(canvas) {
         resolve()
       } catch (error) {
         // 클립보드 API 지원하지 않는 경우
-        reject(new Error('클립보드 복사를 지원하지 않는 브라우저입니다.'))
+        if (error.name === 'NotAllowedError') {
+          reject(new Error('클립보드 접근이 거부되었습니다. 브라우저 권한을 확인해주세요.'))
+        } else {
+          reject(new Error('클립보드 복사를 지원하지 않는 브라우저입니다.'))
+        }
       }
     }, 'image/png')
   })

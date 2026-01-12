@@ -11,16 +11,25 @@ function ImageEditor({ image, defaultText, onClose }) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isCopying, setIsCopying] = useState(false)
+  const [canvasClean, setCanvasClean] = useState(true) // CORS로 로드됐는지
 
   const imageRef = useRef(new Image())
   const retryCount = useRef(0)
 
   useEffect(() => {
     const img = imageRef.current
-    img.crossOrigin = 'anonymous'
     retryCount.current = 0
     setLoadError(false)
     setImageLoaded(false)
+    setCanvasClean(true)
+
+    const targetUrl = image.originalUrl || image.full
+
+    const tryLoad = (proxyUrl, withCors = true) => {
+      img.crossOrigin = withCors ? 'anonymous' : null
+      img.src = proxyUrl
+    }
 
     img.onload = () => {
       setImageLoaded(true)
@@ -32,29 +41,30 @@ function ImageEditor({ image, defaultText, onClose }) {
       console.error('이미지 로드 실패:', img.src)
       retryCount.current++
 
-      // 다른 프록시로 재시도 (최대 2회)
+      // 다른 프록시로 재시도
       if (retryCount.current === 1) {
-        const targetUrl = image.originalUrl || image.full
-        img.src = `https://images.weserv.nl/?url=${encodeURIComponent(targetUrl)}&default=1`
+        tryLoad(`https://images.weserv.nl/?url=${encodeURIComponent(targetUrl)}&default=1`, true)
       } else if (retryCount.current === 2) {
-        // 마지막 시도: 프록시 없이 직접 로드
-        img.crossOrigin = null
-        img.src = image.originalUrl || image.full
+        // corsproxy.io 시도
+        tryLoad(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`, true)
+      } else if (retryCount.current === 3) {
+        // 마지막 시도: CORS 없이 직접 로드 (복사/다운로드 불가)
+        setCanvasClean(false)
+        tryLoad(targetUrl, false)
       } else {
         setLoadError(true)
       }
     }
 
-    // 원본 URL 사용
-    const targetUrl = image.originalUrl || image.full
-    img.src = `https://wsrv.nl/?url=${encodeURIComponent(targetUrl)}&default=1`
+    // 첫 시도: wsrv.nl
+    tryLoad(`https://wsrv.nl/?url=${encodeURIComponent(targetUrl)}&default=1`, true)
 
-    // 10초 타임아웃
+    // 15초 타임아웃
     const timeout = setTimeout(() => {
       if (!imageLoaded && !loadError) {
         setLoadError(true)
       }
-    }, 10000)
+    }, 15000)
 
     return () => clearTimeout(timeout)
   }, [image.full, image.originalUrl])
@@ -113,22 +123,44 @@ function ImageEditor({ image, defaultText, onClose }) {
   }
 
   const handleDownload = async () => {
+    if (!canvasClean) {
+      // CORS 없이 로드된 경우, 원본 이미지 직접 다운로드
+      window.open(image.originalUrl || image.full, '_blank')
+      return
+    }
+
     setIsDownloading(true)
     try {
       await downloadImage(canvasRef.current, 'jjal-kak.png')
     } catch (error) {
-      alert('다운로드 실패: ' + error.message)
+      if (error.message.includes('SecurityError') || error.message.includes('tainted')) {
+        window.open(image.originalUrl || image.full, '_blank')
+      } else {
+        alert('다운로드 실패: ' + error.message)
+      }
     } finally {
       setIsDownloading(false)
     }
   }
 
   const handleCopy = async () => {
+    if (!canvasClean) {
+      alert('이 이미지는 보안 제한으로 복사할 수 없습니다.\n다운로드를 이용해주세요.')
+      return
+    }
+
+    setIsCopying(true)
     try {
       await copyImageToClipboard(canvasRef.current)
       alert('클립보드에 복사되었습니다!')
     } catch (error) {
-      alert('복사 실패: ' + error.message)
+      if (error.message.includes('SecurityError') || error.message.includes('tainted')) {
+        alert('보안 제한으로 복사할 수 없습니다.\n다운로드를 이용해주세요.')
+      } else {
+        alert('복사 실패: ' + error.message)
+      }
+    } finally {
+      setIsCopying(false)
     }
   }
 
@@ -218,15 +250,17 @@ function ImageEditor({ image, defaultText, onClose }) {
             <button
               className="action-button download"
               onClick={handleDownload}
-              disabled={isDownloading}
+              disabled={isDownloading || !imageLoaded}
             >
-              {isDownloading ? '저장 중...' : '다운로드'}
+              {isDownloading ? '저장 중...' : (canvasClean ? '다운로드' : '원본 열기')}
             </button>
             <button
               className="action-button copy"
               onClick={handleCopy}
+              disabled={isCopying || !imageLoaded || !canvasClean}
+              title={!canvasClean ? '보안 제한으로 복사 불가' : ''}
             >
-              복사
+              {isCopying ? '복사 중...' : '복사'}
             </button>
           </div>
 
