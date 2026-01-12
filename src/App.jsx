@@ -75,6 +75,14 @@ function App() {
     setSelectedImage(null)
   }
 
+  const handleReset = () => {
+    setSentence('')
+    setKeywords({ korean: [] })
+    setImages([])
+    setSelectedImage(null)
+    setError(null)
+  }
+
   // 키워드가 없으면 문장을 키워드로 사용
   const displayKeywords = keywords.korean.length > 0 ? keywords.korean : (sentence ? [sentence] : [])
   const koreanSiteLinks = displayKeywords.length > 0
@@ -84,7 +92,7 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>짤-칵!</h1>
+        <h1 onClick={handleReset} style={{ cursor: 'pointer' }}>짤-칵!</h1>
         <p>AI가 찾아주는 짤 생성기</p>
       </header>
 
