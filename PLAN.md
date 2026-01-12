@@ -1,243 +1,137 @@
-# 짤-칵! 구현 문서
+# 📸 짤-칵! (Jjal-kak!) 구현 가이드
 
-## 배포 URL
-https://kakao-sun-flower.github.io/jjal-kak/
+> "문장만 입력하세요. 완벽한 짤은 AI가 찾아드릴게요."
+
+사용자의 의도를 분석해 최적의 밈(Meme)을 찾아내고, 나만의 문구를 입혀 완성하는 **No-DB 클라이언트 기반 이미지 큐레이션 서비스**입니다.
+
+**배포 주소**: https://kakao-sun-flower.github.io/jjal-kak/
 
 ---
 
-## 1. 서비스 개요
+## 1. 서비스 개요 💡
 
 ### 핵심 컨셉
-사용자가 문장을 입력하면 AI가 키워드를 추출하고, 네이버에서 관련 짤 이미지를 검색하여 보여주는 No-DB 클라이언트 기반 서비스.
+
+사용자가 입력한 문장에서 AI가 핵심 키워드를 추출하고, 이를 기반으로 네이버에서 관련 이미지(짤/밈)를 검색합니다. 서버 비용 걱정 없는 **No-DB 클라이언트 중심 설계**로 빠르고 가벼운 경험을 제공합니다.
 
 ### 주요 기능
-- **2단계 검색 전략**:
-  1. 먼저 검색어 + "짤"/"밈"으로 직접 검색
-  2. 결과 부족 시 AI 키워드 추출 후 재검색
-- **네이버 이미지 검색**: 최대 10개 이미지 표시
-- **추천 문구 검색**: 입력 없이 버튼 클릭 시 추천 문구로 자동 검색
-- **텍스트 오버레이**: 선택한 이미지에 텍스트 합성
-- **다운로드/복사**: PNG 다운로드 및 클립보드 복사
-- **헤더 클릭 리셋**: "짤-칵!" 클릭 시 초기 화면으로 복귀
+
+- **지능형 2단계 검색**:
+  - 1차로 입력어 기반 직접 검색을 수행합니다.
+  - 결과가 부족할 경우, AI가 맥락을 분석해 추출한 키워드로 2차 재검색을 진행하여 풍부한 결과를 보장합니다.
+
+- **스마트 텍스트 오버레이**: 선택한 이미지 위에 사용자가 원하는 문구를 직접 합성하여 나만의 짤을 만듭니다.
+
+- **강력한 공유 기능**: 완성된 이미지는 PNG로 다운로드하거나 클립보드에 즉시 복사하여 사용할 수 있습니다.
+
+- **추천 문구 셔플**: 무엇을 검색할지 고민되는 사용자를 위해 버튼 클릭 한 번으로 추천 문구 검색 기능을 제공합니다.
 
 ---
 
-## 2. 기술 스택
+## 2. 기술 스택 🛠
 
 | 구분 | 기술 | 용도 |
 |------|------|------|
-| Frontend | React + Vite | SPA 프레임워크 |
-| AI | OpenAI API (GPT-3.5-turbo) | 키워드 추출 (로컬 전용) |
-| CORS 프록시 | allorigins.win, corsproxy.io | 검색 페이지 HTML 가져오기 |
-| 이미지 프록시 | wsrv.nl, images.weserv.nl | 핫링크 차단 우회 |
-| 이미지 합성 | Canvas API | 텍스트 오버레이 렌더링 |
-| 배포 | GitHub Pages + gh-pages | 정적 호스팅 |
-| 스타일 | CSS | 다크 테마 UI |
+| Frontend | React, Vite | 컴포넌트 기반 SPA 개발 및 빠른 빌드 |
+| AI Engine | OpenAI API (gpt-5-mini) | 문장 내 핵심 키워드 추출 (로컬 환경 전용) |
+| CORS Proxy | Allorigins, Corsproxy.io | 외부 검색 결과 데이터 수집 우회 |
+| Image Proxy | wsrv.nl, weserv.nl | 이미지 핫링크 차단 해결 및 최적화 |
+| Graphics | Canvas API | 클라이언트 사이드 이미지 합성 및 렌더링 |
+| Styling | CSS3 | 반응형 다크 테마 디자인 |
 
 ---
 
-## 3. 서비스 아키텍처
+## 3. 서비스 아키텍처 및 흐름도 🏗️
 
-```
-[사용자 입력] (또는 추천 문구)
-    ↓
-[1단계: 직접 검색]
-    ├─→ 네이버: "검색어 짤" 검색
-    └─→ 네이버: "검색어 밈" 검색
-    ↓
-[결과 5개 미만?] ──Yes──→ [2단계: 키워드 추출]
-    │                         ↓ (로컬: OpenAI / 배포: 폴백)
-    │                    [키워드 + "짤"/"밈" 재검색]
-    │                         ↓
-    └──────No───────→ [결과 합치기 + 중복 제거 (최대 10개)]
-    ↓
-[이미지 프록시] → 재시도 로직 (wsrv.nl → images.weserv.nl → corsproxy.io)
-    ↓
-[이미지 그리드 표시]
-    ↓
-[이미지 편집기] → 텍스트 오버레이 (Canvas)
-    ↓
-[다운로드/복사] → CORS 실패 시 원본 URL 열기
+```mermaid
+graph TD
+    A[사용자 입력/추천 문구] --> B{1단계: 직접 검색}
+    B -- 결과 5개 이상 --> F[이미지 리스트 표시]
+    B -- 결과 부족 시 --> C[AI 키워드 추출]
+    C --> D[키워드 재검색]
+    D --> E[결과 병합 및 중복 제거]
+    E --> F
+    F --> G[이미지 프록시 처리/재시도]
+    G --> H[이미지 편집기: Canvas 합성]
+    H --> I[다운로드/복사]
 ```
 
-> **참고**: 구글은 CORS 프록시를 차단하여 네이버만 사용합니다.
-> 검색 실패 시 구글/DC인사이드/에펨코리아 바로가기 링크를 제공합니다.
+> **Insight**: 검색 실패 시 사용자가 흐름을 끊지 않도록 구글, DC인사이드, 에펨코리아 등 외부 커뮤니티로의 바로가기 링크를 제공하는 **폴백(Fallback) 전략**을 갖추고 있습니다.
 
 ---
 
-## 4. 프로젝트 구조
+## 4. 핵심 구현 상세 뜯어보기 🔍
 
-```
-jjal-kak/
-├── index.html
-├── package.json
-├── vite.config.js           # base: '/jjal-kak/' (GitHub Pages용)
-├── .env                     # VITE_OPENAI_API_KEY (로컬 전용)
-├── .gitignore
-├── PLAN.md
-├── src/
-│   ├── main.jsx             # 앱 진입점
-│   ├── App.jsx              # 메인 컴포넌트 (헤더 클릭 리셋)
-│   ├── App.css              # 전역 스타일 (다크 테마)
-│   ├── components/
-│   │   ├── SearchInput.jsx  # 문장 입력 폼 (추천 문구 기능)
-│   │   ├── KeywordTags.jsx  # 키워드 태그 (수정/삭제/추가)
-│   │   ├── ImageGrid.jsx    # 이미지 그리드 컨테이너
-│   │   ├── ImageCard.jsx    # 개별 이미지 카드 (재시도 로직)
-│   │   └── ImageEditor.jsx  # 텍스트 오버레이 편집기 (CORS 처리)
-│   ├── services/
-│   │   ├── openai.js        # OpenAI 키워드 추출 + 폴백
-│   │   ├── imageProxy.js    # wsrv.nl 프록시 URL 생성
-│   │   └── imageSources.js  # 네이버 이미지 검색 + 중복 제거
-│   └── utils/
-│       └── download.js      # PNG 다운로드, 클립보드 복사
-```
+### 4.1 이미지 검색 및 데이터 정규화 (imageSources.js)
+
+다양한 출처의 이미지를 효율적으로 관리하기 위해 URL 정규화를 거쳐 중복을 제거합니다.
+
+- **URL 정규화**: 쿼리 스트링(사이즈, 퀄리티 옵션 등)을 제거하여 동일한 원본 이미지가 중복 노출되는 것을 방지합니다.
+- **CORS 대응**: 다중 프록시 배열을 운영하여 특정 프록시 서버가 응답하지 않을 경우 다음 서버로 자동 전환됩니다.
+
+### 4.2 안정적인 이미지 로딩 로직 (ImageCard.jsx)
+
+이미지 핫링크 차단으로 인해 엑박(Broken Image)이 뜨는 현상을 방지하기 위해 **3단계 재시도 로직**을 구현했습니다.
+
+1. wsrv.nl 프록시 시도
+2. 실패 시 images.weserv.nl 시도
+3. 최종 실패 시 원본 URL 또는 로컬 폴백 이미지 노출
+
+### 4.3 AI 키워드 추출 및 폴백 전략 (openai.js)
+
+- **로컬 환경**: gpt-5-mini 모델을 사용하여 정교한 키워드를 추출합니다.
+- **배포 환경**: API 키 노출 방지를 위해, 한국어 조사를 제거하고 핵심 명사를 분리하는 **자체 알고리즘(Custom NLP Fallback)**을 사용하여 끊김 없는 서비스를 제공합니다.
 
 ---
 
-## 5. 핵심 구현 상세
+## 5. UI/UX 디자인 가이드 🎨
 
-### 5.1 이미지 검색 (imageSources.js)
+### 비주얼 컨셉: "Deep & Vibrant"
 
-#### CORS 프록시 전략
-```javascript
-const CORS_PROXIES = [
-  { name: 'allorigins-json', getUrl: (url) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}` },
-  { name: 'corsproxy-io', getUrl: (url) => `https://corsproxy.io/?${encodeURIComponent(url)}` },
-  { name: 'cors-proxy-shs', getUrl: (url) => `https://proxy.cors.sh/${url}` }
-]
-```
+- **Background**: 깊이감 있는 다크 네이비 그라데이션 (`#1a1a2e` → `#16213e`)
+- **Point Color**: 활기찬 에너지를 주는 오렌지-레드 (`#f39c12`, `#e74c3c`)
+- **Layout**: 모바일 우선 대응(Mobile-First) 디자인으로, 768px 이하 기기에서도 최적의 그리드를 유지합니다.
 
-#### URL 정규화 (중복 제거)
-```javascript
-function normalizeUrl(url) {
-  let normalized = url.replace(/^https?:\/\//, '').replace(/^www\./, '')
-  normalized = normalized.replace(/[?&](w|h|width|height|size|quality|q|fit|crop|auto|format|f)=[^&]*/gi, '')
-  return normalized.toLowerCase()
-}
-```
+### 사용자 여정 (User Journey)
 
-### 5.2 이미지 카드 (ImageCard.jsx)
-
-#### 재시도 로직
-```javascript
-// 실패 시 다른 프록시로 재시도
-if (retryCount === 1) {
-  setCurrentSrc(`https://images.weserv.nl/?url=${encodeURIComponent(originalUrl)}`)
-} else if (retryCount === 2) {
-  setCurrentSrc(`https://wsrv.nl/?url=${encodeURIComponent(originalUrl)}`)
-}
-```
-
-### 5.3 이미지 편집기 (ImageEditor.jsx)
-
-#### CORS 상태 추적
-```javascript
-const [canvasClean, setCanvasClean] = useState(true)
-
-// CORS 없이 로드된 경우
-if (retryCount === 3) {
-  setCanvasClean(false)  // 복사/다운로드 제한
-  tryLoad(targetUrl, false)
-}
-```
-
-#### 다운로드/복사 처리
-- `canvasClean === true`: 정상 다운로드/복사
-- `canvasClean === false`: 원본 URL 열기 (복사 비활성화)
-
-### 5.4 키워드 추출 (openai.js)
-
-#### 로컬 개발 (API 키 있음)
-```javascript
-const response = await openai.chat.completions.create({
-  model: 'gpt-3.5-turbo',
-  messages: [{ role: 'user', content: `...키워드 추출 프롬프트...` }]
-})
-```
-
-#### 배포 환경 (API 키 없음 - 폴백)
-```javascript
-function fallbackExtract(sentence) {
-  const koreanWords = sentence
-    .replace(/[은는이가을를의와과에서로부터까지]/g, ' ')  // 조사 제거
-    .split(/\s+/)
-    .filter(word => word.length >= 2)
-    .slice(0, 5)
-  return { korean: koreanWords }
-}
-```
+1. **진입**: 로고 클릭으로 언제든 초기화 가능
+2. **검색**: 문장 입력만으로 AI가 태그를 생성하고 이미지 로드
+3. **편집**: 마음에 드는 이미지를 클릭해 즉시 문구 편집 모드 진입
+4. **완성**: 결과물 저장 혹은 커뮤니티에 즉시 활용
 
 ---
 
-## 6. UI/UX
+## 6. 프로젝트 실행 및 배포 🚀
 
-### 다크 테마 디자인
-- 배경: `linear-gradient(135deg, #1a1a2e, #16213e)`
-- 주요 색상: 오렌지-레드 그라데이션 (`#f39c12`, `#e74c3c`)
-- 반응형: 모바일 768px 브레이크포인트
+### 로컬 개발 설정
 
-### 사용자 흐름
-1. "짤-칵!" 클릭 → 초기 화면으로 리셋
-2. 문장 입력 또는 그냥 "짤 찾기" 클릭 (추천 문구 사용)
-3. 키워드 추출 → 태그로 표시 (수정 가능)
-4. 네이버 검색 → 최대 10개 이미지 표시
-5. 이미지 클릭 → 편집기 모달
-6. 텍스트 입력/스타일 조정
-7. 다운로드 또는 클립보드 복사
-
-### 검색 실패 시
-- "검색 결과를 가져오지 못했습니다" 메시지
-- 네이버/구글/DC인사이드/에펨코리아 바로가기 버튼 제공
-
----
-
-## 7. 실행 방법
-
-### 로컬 개발
 ```bash
+# 의존성 설치 및 실행
 npm install
 npm run dev
-# http://localhost:5173 접속
 ```
 
-### 배포
-```bash
-npm run deploy
-# GitHub Pages에 자동 배포
-# predeploy에서 API 키 제외: VITE_OPENAI_API_KEY=''
-```
+### 환경 변수 관리
 
-### 환경 변수 (.env) - 로컬 전용
+로컬에서 AI 기능을 풀버전으로 사용하려면 `.env` 파일이 필요합니다.
+
 ```
 VITE_OPENAI_API_KEY=your_api_key_here
 ```
-> 배포 시 API 키는 포함되지 않으며, 폴백 키워드 추출 사용
+
+### 배포 프로세스
+
+```bash
+npm run deploy
+```
+
+gh-pages를 통해 자동 배포되며, 보안을 위해 배포 빌드 시 API 키는 자동으로 제외되도록 구성되었습니다.
 
 ---
 
-## 8. 제한사항 및 참고
+## 7. 향후 로드맵 🗺️
 
-### CORS 프록시 한계
-- 무료 CORS 프록시 서비스는 불안정할 수 있음
-- 구글/빙 등 대형 검색엔진은 프록시 요청을 차단함
-- 현재 네이버만 안정적으로 동작
-- 일부 이미지는 CORS 제한으로 복사 불가 (다운로드로 대체)
-
-### 저작권
-- 검색된 이미지의 저작권은 원저작자에게 있음
-- 출처 표기 (이미지 편집기에 소스 링크 표시)
-
-### API 키 보안
-- 클라이언트 전용 서비스로 API 키 노출 위험
-- 배포 환경에서는 API 키 미포함 (폴백 사용)
-- 프로덕션에서는 서버리스 함수 권장
-
----
-
-## 9. 향후 개선 가능 사항
-- 서버리스 함수로 OpenAI API 호출 (Cloudflare Workers 등)
-- 자체 백엔드 프록시 서버 구축
-- 이미지 캐싱
-- 더 많은 검색 소스 추가
-- 사용자 즐겨찾기 기능 (로컬스토리지)
+- **성능 최적화**: Cloudflare Workers를 활용한 자체 서버리스 프록시 구축
+- **개인화**: 로컬 스토리지를 활용한 '내가 만든 짤' 보관함 기능
+- **검색 확장**: 핀터레스트, 구글 이미지 등 검색 소스 다각화
+- **AI 고도화**: 사용자 입력 문장의 감정을 분석하여 어울리는 폰트/색상 자동 추천

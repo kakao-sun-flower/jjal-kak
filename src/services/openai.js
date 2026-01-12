@@ -13,7 +13,7 @@ export async function extractKeywords(sentence) {
 
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-5-mini',
       messages: [{
         role: 'user',
         content: `다음 문장에서 짤/밈 검색에 적합한 한국어 키워드를 추출해줘.
