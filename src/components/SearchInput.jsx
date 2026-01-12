@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 
 const PLACEHOLDERS = [
-  '부장님한테 혼나서 우는 중',
   '월요일 출근하기 싫어',
   '퇴근하고 싶다',
   '배고파 죽겠어',

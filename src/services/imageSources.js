@@ -181,9 +181,10 @@ async function searchNaver(keywords, count = 5, suffix = '짤') {
     const images = uniqueUrls.slice(0, count).map((imgUrl, idx) => {
       console.log(`선택 ${idx + 1}: ${imgUrl.substring(0, 60)}...`)
       return {
-        id: `naver-${idx}-${Date.now()}`,
+        id: `naver-${idx}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         thumbnail: getProxyUrl(imgUrl, { width: 300, height: 300 }),
         full: getProxyUrl(imgUrl),
+        originalUrl: imgUrl, // 원본 URL 저장 (ImageEditor에서 사용)
         source: '네이버',
         sourceUrl: searchUrl
       }
@@ -197,20 +198,34 @@ async function searchNaver(keywords, count = 5, suffix = '짤') {
   }
 }
 
+// 결과 중복 제거 (originalUrl 기준)
+function deduplicateResults(results) {
+  const seen = new Set()
+  return results.filter(item => {
+    const key = item.originalUrl || item.full
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 // 문장으로 직접 검색 (짤 + 밈)
 export async function searchByQuery(query, count = 10) {
   console.log(`=== 문장 직접 검색: "${query}" ===`)
 
   try {
-    // "짤"과 "밈" 두 가지로 병렬 검색
+    // "짤"과 "밈" 두 가지로 병렬 검색 (여유있게 가져와서 중복 제거 후 선택)
     const [jjalResults, memeResults] = await Promise.all([
-      searchNaver([query], Math.ceil(count / 2), '짤').catch(() => []),
-      searchNaver([query], Math.ceil(count / 2), '밈').catch(() => [])
+      searchNaver([query], count, '짤').catch(() => []),
+      searchNaver([query], count, '밈').catch(() => [])
     ])
 
     const combined = [...jjalResults, ...memeResults]
-    console.log(`문장 검색 결과: ${combined.length}개 (짤: ${jjalResults.length}, 밈: ${memeResults.length})`)
-    return combined
+    const unique = deduplicateResults(combined)
+    const final = unique.slice(0, count)
+
+    console.log(`문장 검색 결과: ${final.length}개 (원본: ${combined.length}, 중복제거: ${unique.length})`)
+    return final
   } catch (error) {
     console.error('문장 검색 오류:', error)
     return []
@@ -231,13 +246,16 @@ export async function searchImages(keywordsObj, count = 10) {
   try {
     // 키워드로 "짤"과 "밈" 병렬 검색
     const [jjalResults, memeResults] = await Promise.all([
-      searchNaver(korean, Math.ceil(count / 2), '짤').catch(() => []),
-      searchNaver(korean, Math.ceil(count / 2), '밈').catch(() => [])
+      searchNaver(korean, count, '짤').catch(() => []),
+      searchNaver(korean, count, '밈').catch(() => [])
     ])
 
     const combined = [...jjalResults, ...memeResults]
-    console.log(`키워드 검색 결과: ${combined.length}개`)
-    return combined
+    const unique = deduplicateResults(combined)
+    const final = unique.slice(0, count)
+
+    console.log(`키워드 검색 결과: ${final.length}개 (원본: ${combined.length}, 중복제거: ${unique.length})`)
+    return final
   } catch (error) {
     console.error('검색 오류:', error)
     return []

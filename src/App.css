@@ -361,6 +361,25 @@ body {
   color: #888;
 }
 
+.editor-error {
+  position: absolute;
+  text-align: center;
+  color: #e74c3c;
+}
+
+.editor-error p {
+  margin-bottom: 10px;
+}
+
+.editor-error a {
+  color: #3498db;
+  text-decoration: none;
+}
+
+.editor-error a:hover {
+  text-decoration: underline;
+}
+
 .editor-controls {
   padding: 20px;
 }

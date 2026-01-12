@@ -9,23 +9,55 @@ function ImageEditor({ image, defaultText, onClose }) {
   const [strokeColor, setStrokeColor] = useState('#000000')
   const [textPosition, setTextPosition] = useState('bottom') // top, center, bottom
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
 
   const imageRef = useRef(new Image())
+  const retryCount = useRef(0)
 
   useEffect(() => {
     const img = imageRef.current
     img.crossOrigin = 'anonymous'
+    retryCount.current = 0
+    setLoadError(false)
+    setImageLoaded(false)
+
     img.onload = () => {
       setImageLoaded(true)
+      setLoadError(false)
       drawCanvas()
     }
+
     img.onerror = () => {
-      console.error('이미지 로드 실패')
+      console.error('이미지 로드 실패:', img.src)
+      retryCount.current++
+
+      // 다른 프록시로 재시도 (최대 2회)
+      if (retryCount.current === 1) {
+        const targetUrl = image.originalUrl || image.full
+        img.src = `https://images.weserv.nl/?url=${encodeURIComponent(targetUrl)}&default=1`
+      } else if (retryCount.current === 2) {
+        // 마지막 시도: 프록시 없이 직접 로드
+        img.crossOrigin = null
+        img.src = image.originalUrl || image.full
+      } else {
+        setLoadError(true)
+      }
     }
-    // 프록시 URL 사용
-    img.src = `https://wsrv.nl/?url=${encodeURIComponent(image.full)}`
-  }, [image.full])
+
+    // 원본 URL 사용
+    const targetUrl = image.originalUrl || image.full
+    img.src = `https://wsrv.nl/?url=${encodeURIComponent(targetUrl)}&default=1`
+
+    // 10초 타임아웃
+    const timeout = setTimeout(() => {
+      if (!imageLoaded && !loadError) {
+        setLoadError(true)
+      }
+    }, 10000)
+
+    return () => clearTimeout(timeout)
+  }, [image.full, image.originalUrl])
 
   useEffect(() => {
     if (imageLoaded) {
@@ -113,7 +145,15 @@ function ImageEditor({ image, defaultText, onClose }) {
 
         <div className="editor-canvas-container">
           <canvas ref={canvasRef} className="editor-canvas" />
-          {!imageLoaded && <div className="editor-loading">이미지 로딩 중...</div>}
+          {!imageLoaded && !loadError && <div className="editor-loading">이미지 로딩 중...</div>}
+          {loadError && (
+            <div className="editor-error">
+              <p>이미지를 불러올 수 없습니다</p>
+              <a href={image.originalUrl || image.full} target="_blank" rel="noopener noreferrer">
+                원본 이미지 열기
+              </a>
+            </div>
+          )}
         </div>
 
         <div className="editor-controls">
